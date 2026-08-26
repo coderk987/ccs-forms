@@ -2,15 +2,18 @@ package controllers
 
 import (
 	"ccs-forms/db"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/golang-jwt/jwt/v5"
 
 	"os"
 	"time"
 
+	"errors"
 	"strconv"
 )
 
@@ -20,6 +23,8 @@ type LoginRequest struct {
 
 func LoginUser(c *gin.Context) {
 	var req LoginRequest
+
+	fmt.Println("Running Login")
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -36,7 +41,15 @@ func LoginUser(c *gin.Context) {
 	).Scan(&userId)
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "email not found"})
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(404, gin.H{
+				"error": "email not found",
+			})
+			return
+		}
+		c.JSON(500, gin.H{
+			"error": err.Error(),
+		})
 		return
 	}
 

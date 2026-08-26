@@ -26,5 +26,6 @@ func PostgresConnect() {
 		log.Fatal("Error Connecting to PostgreSQL")
 	}
 
+	log.Println("Connected to Postgres.")
 	Pool = pool
 }

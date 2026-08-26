@@ -9,6 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// genuinely fuck gin
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		//get header check not empty

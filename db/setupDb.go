@@ -2,13 +2,14 @@ package db
 
 import (
 	"context"
+	"log"
 	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func SetupDb(pool *pgxpool.Pool) error {
-	dataSetup, err := os.ReadFile("sql/setup.sql")
+	dataSetup, err := os.ReadFile("./db/setup.sql")
 	if err != nil {
 		return err
 	}
@@ -22,7 +23,8 @@ func SetupDb(pool *pgxpool.Pool) error {
 		return err
 	}
 
-	dataSample, err := os.ReadFile("sql/sample_data.sql")
+	log.Println("Ran setup succesfully")
+	dataSample, err := os.ReadFile("./db/sample_data.sql")
 	if err != nil {
 		return err
 	}
@@ -36,5 +38,6 @@ func SetupDb(pool *pgxpool.Pool) error {
 		return err
 	}
 
+	log.Println("Ran sample succesfully")
 	return nil
 }

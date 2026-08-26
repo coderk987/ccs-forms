@@ -12,8 +12,9 @@ import (
 func main() {
 	db.PostgresConnect()
 	err := db.SetupDb(db.Pool)
-	if err == nil {
+	if err != nil {
 		fmt.Println("Setup already done.")
+		fmt.Println(err.Error())
 	}
 
 	router := gin.Default()
@@ -25,5 +26,6 @@ func main() {
 	api := router.Group("/")
 	routes.FormRoutes(api)
 	routes.ResponseRoutes(api)
+	routes.AuthRoutes(api)
 	router.Run(":3000")
 }

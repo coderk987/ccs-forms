@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     gmail TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'user'
-        CHECK (role IN ('user', 'admin'))
+        CHECK (role IN ('user', 'creator', 'admin'))
 );
 
 CREATE TABLE IF NOT EXISTS draft_forms (
@@ -114,3 +114,5 @@ CREATE INDEX IF NOT EXISTS idx_answers_question_id
 
 CREATE INDEX IF NOT EXISTS idx_checkbox_answers_answer_id
     ON checkbox_answers(answer_id);
+
+COMMIT;
