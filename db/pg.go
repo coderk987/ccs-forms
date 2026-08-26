@@ -9,18 +9,22 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func postgresConnect() *pgxpool.Pool {
+var Pool *pgxpool.Pool
+
+func PostgresConnect() {
 	err := godotenv.Load()
 
 	if err != nil {
+		Pool = nil
 		log.Fatal("Error loading .env")
 	}
 
 	dbURL := os.Getenv("DATABASE_URL")
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
+		Pool = nil
 		log.Fatal("Error Connecting to PostgreSQL")
-		return nil
 	}
-	return pool
+
+	Pool = pool
 }

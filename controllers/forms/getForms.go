@@ -7,6 +7,7 @@ import (
 )
 
 func GetForms(c *gin.Context) {
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "get all forms",
 	})
