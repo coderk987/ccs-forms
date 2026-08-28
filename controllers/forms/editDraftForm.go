@@ -3,9 +3,11 @@ package controllers
 import (
 	"ccs-forms/db"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 )
 
 type EditDraftFormRequest struct {
@@ -29,12 +31,14 @@ type FormQuestions struct {
 	Position   int64
 	Status     string
 	Options    []QuestionOptions
+	SectionID  int64
 }
 
 type QuestionOptions struct {
-	ID     int64
-	Status string
-	Title  string
+	ID         int64
+	Status     string
+	Title      string
+	QuestionID int64
 }
 
 func EditDraftForm(c *gin.Context) {
@@ -46,15 +50,20 @@ func EditDraftForm(c *gin.Context) {
 
 	var row int64
 	err := db.Pool.QueryRow(c.Request.Context(),
-		`SELECT author_id FROM draft_forms WHERE id=%1`,
+		`SELECT author_id FROM draft_forms WHERE id=$1`,
 		id,
 	).Scan(&row)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Draft form not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update properly"})
 		return
 	}
 	if row != userID {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not the Owner of the form"})
+		return
 	}
 
 	var req EditDraftFormRequest
@@ -97,6 +106,7 @@ func EditDraftForm(c *gin.Context) {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update properly"})
 				return
 			}
+			continue
 		}
 
 		//iterating over questions
@@ -133,6 +143,7 @@ func EditDraftForm(c *gin.Context) {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update properly"})
 					return
 				}
+				continue
 			}
 
 			//checking for options

@@ -9,8 +9,12 @@ import (
 
 func responseID(c *gin.Context) (int64, bool) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil || id < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid response id"})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Response id must be a valid integer"})
+		return 0, false
+	}
+	if id < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Response id must be greater than zero"})
 		return 0, false
 	}
 
@@ -19,8 +23,12 @@ func responseID(c *gin.Context) (int64, bool) {
 
 func publishedFormID(c *gin.Context) (int64, bool) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil || id < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form id"})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Form id must be a valid integer"})
+		return 0, false
+	}
+	if id < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Form id must be greater than zero"})
 		return 0, false
 	}
 

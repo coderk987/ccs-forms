@@ -5,11 +5,11 @@ POST /auth/login 🚧 [protoype for now then OAUTH]
 DRAFTS
 GET /draft_forms/ => forms created by current user ✅
 POST /draft_forms/ => create a form draft by current user ✅
-GET /draft_forms/:id => get a draft forms information ✅
-PUT /draft_forms/:id => edit questions/sections added to draft !!
+GET /draft_forms/:id => get a draft forms information ✅🚧
+PUT /draft_forms/:id => edit questions/sections added to draft !! ✅🚧
 PATCH /draft_forms/:id => edit metadata of form(info, deadline, viewers) ✅
 DELETE /draft_forms/:id => delete the current form ✅
-POST /draft_forms/:id/publish => publish the forms !
+POST /draft_forms/:id/publish => publish the forms ! ✅
 
 Note for frontend => Get :id will give you a json of a forms information, it is the frontends job to maintain it on the client side and send the complete changed json again start to finish in the PUT request when saving/when the client is closing the window
 Client shouldnt change the schema and NEVER touch the id's only the information/deletions/insertions

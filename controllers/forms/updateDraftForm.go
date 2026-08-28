@@ -23,7 +23,11 @@ func UpdateDraftForm(c *gin.Context) {
 	}
 
 	var req UpdateDraftFormRequest
-	if err := c.ShouldBindJSON(&req); err != nil || (req.Title == nil && req.Description == nil) {
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	if req.Title == nil && req.Description == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Provide a title or description to update"})
 		return
 	}

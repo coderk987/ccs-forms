@@ -19,6 +19,7 @@ func FormRoutes(router *gin.RouterGroup) {
 	draftForms.PATCH("/:id", formControllers.UpdateDraftForm)
 	draftForms.DELETE("/:id", formControllers.DeleteDraftForm)
 	draftForms.PUT("/:id", formControllers.EditDraftForm)
+	draftForms.POST("/:id/publish", formControllers.PublishDraftForm)
 
 	publishedForms := forms.Group("/published_forms")
 	publishedForms.GET("/", formControllers.GetPublishedForms)
