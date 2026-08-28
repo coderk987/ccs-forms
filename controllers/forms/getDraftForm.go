@@ -10,10 +10,8 @@ import (
 )
 
 func GetDraftForm(c *gin.Context) {
-	userID, ok := currentUserID(c)
-	if !ok {
-		return
-	}
+	userID := c.GetInt64("userID")
+
 	id, ok := draftFormID(c)
 	if !ok {
 		return

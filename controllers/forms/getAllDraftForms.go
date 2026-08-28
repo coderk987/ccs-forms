@@ -9,10 +9,7 @@ import (
 )
 
 func GetForms(c *gin.Context) {
-	userID, ok := currentUserID(c)
-	if !ok {
-		return
-	}
+	userID := c.GetInt64("userID")
 
 	rows, err := db.Pool.Query(c.Request.Context(), `
 		SELECT id, title, description

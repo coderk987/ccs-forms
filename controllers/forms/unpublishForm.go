@@ -6,14 +6,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func GetResponse(c *gin.Context) {
-	id, ok := responseID(c)
+func UnpublishForm(c *gin.Context) {
+	id, ok := draftFormID(c)
 	if !ok {
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":     "get response controller wired",
-		"response_id": id,
+		"message": "unpublish form controller wired",
+		"form_id": id,
 	})
 }

@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -58,8 +59,24 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		//add user id to our context
-		userID := claims["sub"]
+		//get user id from claims
+		userIDString, ok := claims["sub"].(string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid user ID",
+			})
+			c.Abort()
+			return
+		}
+		//parse the user id and set it in context
+		userID, err := strconv.ParseInt(userIDString, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Couldnt Recognize the User",
+			})
+			c.Abort()
+			return
+		}
 		c.Set("userID", userID)
 
 		c.Next()

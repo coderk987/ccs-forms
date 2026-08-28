@@ -9,11 +9,14 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+type UpdateDraftFormRequest struct {
+	Title       *string `json:"title"`
+	Description *string `json:"description"`
+}
+
 func UpdateDraftForm(c *gin.Context) {
-	userID, ok := currentUserID(c)
-	if !ok {
-		return
-	}
+	userID := c.GetInt64("userID")
+
 	id, ok := draftFormID(c)
 	if !ok {
 		return

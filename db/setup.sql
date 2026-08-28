@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS published_forms (
     title TEXT NOT NULL,
     description TEXT,
     author_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    deadline TIMESTAMPTZ
+    deadline TIMESTAMPTZ,
+    structure JSONB NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS view_permissions (
@@ -71,8 +72,7 @@ CREATE TABLE IF NOT EXISTS answers (
     id BIGSERIAL PRIMARY KEY,
     response_id BIGINT NOT NULL REFERENCES responses(id) ON DELETE CASCADE,
     question_id BIGINT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
-    payload JSONB NOT NULL,
-    UNIQUE (response_id, question_id)
+    payload JSONB NOT NULL UNIQUE (response_id, question_id)
 );
 
 CREATE TABLE IF NOT EXISTS checkbox_answers (

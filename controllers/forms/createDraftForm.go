@@ -7,11 +7,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type CreateDraftFormRequest struct {
+	Title       string  `json:"title" binding:"required"`
+	Description *string `json:"description"`
+}
+
 func CreateDraftForm(c *gin.Context) {
-	userID, ok := currentUserID(c)
-	if !ok {
-		return
-	}
+	userID := c.GetInt64("userID")
 
 	var req CreateDraftFormRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
