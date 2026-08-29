@@ -60,13 +60,14 @@ func PublishDraftForm(c *gin.Context) {
 	}
 
 	_, err = db.Pool.Exec(c.Request.Context(),
-		`INSERT INTO draft_forms (id, title, description, author_id, deadline, structure)
+		`INSERT INTO published_forms (id, title, description, author_id, deadline, structure)
 		VALUES ($1, $2, $3, $4, $5, $6)`,
 		draft.ID, draft.Title, draft.Description, userID, req.Deadline, res,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "could not publish the form",
+			"error":   err,
 		})
 		return
 	}

@@ -8,12 +8,8 @@ import (
 )
 
 func ResponseRoutes(router *gin.RouterGroup) {
-	responses := router.Group("/")
+	responses := router.Group("/responses")
 	responses.Use(middleware.AuthMiddleware())
-
-	response := responses.Group("/response")
-	response.DELETE("/:id", controllers.DeleteResponse)
-
-	responseInfo := responses.Group("/responses")
-	responseInfo.GET("/:id", controllers.GetResponse)
+	responses.DELETE("/:id", controllers.DeleteResponse)
+	responses.GET("/:id", controllers.GetResponse)
 }
