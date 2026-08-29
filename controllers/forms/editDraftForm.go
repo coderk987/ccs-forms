@@ -15,30 +15,30 @@ type EditDraftFormRequest struct {
 }
 
 type FormSections struct {
-	ID          int64
-	Title       string
-	Description string
-	Position    int64
-	Status      string
-	Questions   []FormQuestions
+	ID          int64           `db:"id"`
+	Title       string          `db:"title"`
+	Description string          `db:"description"`
+	Position    int64           `db:"position"`
+	Status      string          `db:"-"`
+	Questions   []FormQuestions `db:"-"`
 }
 
 type FormQuestions struct {
-	ID         int64
-	Title      string
-	Type       string
-	Validation json.RawMessage
-	Position   int64
-	Status     string
-	Options    []QuestionOptions
-	SectionID  int64
+	ID         int64             `db:"id"`
+	Title      string            `db:"title"`
+	Type       string            `db:"type"`
+	Validation json.RawMessage   `db:"validation"`
+	Position   int64             `db:"position"`
+	Status     string            `db:"-"`
+	Options    []QuestionOptions `db:"-"`
+	SectionID  int64             `db:"section_id"`
 }
 
 type QuestionOptions struct {
-	ID         int64
-	Status     string
-	Title      string
-	QuestionID int64
+	ID         int64  `db:"id"`
+	Status     string `db:"-"`
+	Title      string `db:"title"`
+	QuestionID int64  `db:"question_id"`
 }
 
 func EditDraftForm(c *gin.Context) {
