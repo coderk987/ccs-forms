@@ -25,9 +25,9 @@ func main() {
 	})
 	api := router.Group("/")
 	routes.FormRoutes(api)
-	routes.PublishedFormRoutes(api)
 	routes.ResponderRoutes(api)
 	routes.ResponseRoutes(api)
 	routes.AuthRoutes(api)
 
+	router.Run(":8080")
 }

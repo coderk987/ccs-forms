@@ -11,6 +11,6 @@ func ResponderRoutes(router *gin.RouterGroup) {
 	form := router.Group("/form")
 	form.Use(middleware.AuthMiddleware())
 
-	form.GET("/:id", controllers.GetForm)
+	form.GET("/:id", controllers.GetResponderForm)
 	form.POST("/:id/response", controllers.CreateResponse)
 }

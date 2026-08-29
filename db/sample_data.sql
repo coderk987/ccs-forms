@@ -170,23 +170,147 @@ FROM questions q
 WHERE q.title = 'Which workshop track do you prefer?';
 
 -- PUBLISHED_FORMS
-INSERT INTO published_forms (title, description, author_id, deadline)
+INSERT INTO published_forms (title, description, author_id, deadline, structure)
 SELECT
-    'Developer Experience Survey',
+    f.title,
     'A published developer experience survey.',
-    id,
-    NOW() + INTERVAL '14 days'
-FROM users
-WHERE gmail = 'alice@example.com';
+    u.id,
+    NOW() + INTERVAL '14 days',
+    jsonb_build_object(
+        'id', f.id,
+        'title', f.title,
+        'description', f.description,
+        'sections', COALESCE((
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'id', s.id,
+                    'title', s.title,
+                    'description', s.description,
+                    'position', s.position,
+                    'questions', COALESCE((
+                        SELECT jsonb_agg(
+                            jsonb_build_object(
+                                'id', q.id,
+                                'title', q.title,
+                                'type', q.type,
+                                'validation', q.validation,
+                                'position', q.position,
+                                'section_id', q.section_id,
+                                'options', CASE
+                                    WHEN q.type = 'checkbox' THEN COALESCE((
+                                        SELECT jsonb_agg(
+                                            jsonb_build_object(
+                                                'id', co.id,
+                                                'title', co.title,
+                                                'question_id', co.question_id
+                                            )
+                                            ORDER BY co.id
+                                        )
+                                        FROM checkbox_options co
+                                        WHERE co.question_id = q.id
+                                    ), '[]'::jsonb)
+                                    WHEN q.type = 'mcq' THEN COALESCE((
+                                        SELECT jsonb_agg(
+                                            jsonb_build_object(
+                                                'id', mo.id,
+                                                'title', mo.title,
+                                                'question_id', mo.question_id
+                                            )
+                                            ORDER BY mo.id
+                                        )
+                                        FROM mcq_options mo
+                                        WHERE mo.question_id = q.id
+                                    ), '[]'::jsonb)
+                                    ELSE '[]'::jsonb
+                                END
+                            )
+                            ORDER BY q.position, q.id
+                        )
+                        FROM questions q
+                        WHERE q.section_id = s.id
+                    ), '[]'::jsonb)
+                )
+                ORDER BY s.position, s.id
+            )
+            FROM sections s
+            WHERE s.form_id = f.id
+        ), '[]'::jsonb)
+    )
+FROM draft_forms f
+JOIN users u ON u.id = f.author_id
+WHERE f.title = 'Developer Experience Survey'
+  AND u.gmail = 'alice@example.com';
 
-INSERT INTO published_forms (title, description, author_id, deadline)
+INSERT INTO published_forms (title, description, author_id, deadline, structure)
 SELECT
-    'Workshop Registration',
+    f.title,
     'Registration for the technical workshop.',
-    id,
-    NOW() + INTERVAL '7 days'
-FROM users
-WHERE gmail = 'bob@example.com';
+    u.id,
+    NOW() + INTERVAL '7 days',
+    jsonb_build_object(
+        'id', f.id,
+        'title', f.title,
+        'description', f.description,
+        'sections', COALESCE((
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'id', s.id,
+                    'title', s.title,
+                    'description', s.description,
+                    'position', s.position,
+                    'questions', COALESCE((
+                        SELECT jsonb_agg(
+                            jsonb_build_object(
+                                'id', q.id,
+                                'title', q.title,
+                                'type', q.type,
+                                'validation', q.validation,
+                                'position', q.position,
+                                'section_id', q.section_id,
+                                'options', CASE
+                                    WHEN q.type = 'checkbox' THEN COALESCE((
+                                        SELECT jsonb_agg(
+                                            jsonb_build_object(
+                                                'id', co.id,
+                                                'title', co.title,
+                                                'question_id', co.question_id
+                                            )
+                                            ORDER BY co.id
+                                        )
+                                        FROM checkbox_options co
+                                        WHERE co.question_id = q.id
+                                    ), '[]'::jsonb)
+                                    WHEN q.type = 'mcq' THEN COALESCE((
+                                        SELECT jsonb_agg(
+                                            jsonb_build_object(
+                                                'id', mo.id,
+                                                'title', mo.title,
+                                                'question_id', mo.question_id
+                                            )
+                                            ORDER BY mo.id
+                                        )
+                                        FROM mcq_options mo
+                                        WHERE mo.question_id = q.id
+                                    ), '[]'::jsonb)
+                                    ELSE '[]'::jsonb
+                                END
+                            )
+                            ORDER BY q.position, q.id
+                        )
+                        FROM questions q
+                        WHERE q.section_id = s.id
+                    ), '[]'::jsonb)
+                )
+                ORDER BY s.position, s.id
+            )
+            FROM sections s
+            WHERE s.form_id = f.id
+        ), '[]'::jsonb)
+    )
+FROM draft_forms f
+JOIN users u ON u.id = f.author_id
+WHERE f.title = 'Workshop Registration'
+  AND u.gmail = 'bob@example.com';
 
 -- VIEW_PERMISSIONS
 INSERT INTO view_permissions (user_id, form_id)

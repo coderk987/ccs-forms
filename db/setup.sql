@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS answers (
     id BIGSERIAL PRIMARY KEY,
     response_id BIGINT NOT NULL REFERENCES responses(id) ON DELETE CASCADE,
     question_id BIGINT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
-    payload JSONB NOT NULL UNIQUE (response_id, question_id)
+    payload JSONB NOT NULL,
+    UNIQUE (response_id, question_id)
 );
 
 CREATE TABLE IF NOT EXISTS checkbox_answers (
