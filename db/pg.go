@@ -1,7 +1,9 @@
 package db
 
 import (
+	"ccs-forms/config"
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -15,15 +17,17 @@ func PostgresConnect() {
 	err := godotenv.Load()
 
 	if err != nil {
-		Pool = nil
-		log.Fatal("Error loading .env")
+		if config.IsDev() {
+			fmt.Errorf("Error loading .env: %v", err)
+		}
+		log.Println("warning: no .env file found, using system environement variables")
 	}
 
 	dbURL := os.Getenv("DATABASE_URL")
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		Pool = nil
-		log.Fatal("Error Connecting to PostgreSQL")
+		log.Fatalf("Error connecting to PostgreSQL: %v", err)
 	}
 
 	log.Println("Connected to Postgres.")
