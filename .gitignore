@@ -26,3 +26,7 @@
 # OS
 .DS_Store
 Thumbs.db
+
+#MD files
+Review.MD
+UPDATE.MD

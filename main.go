@@ -27,6 +27,7 @@ func main() {
 	routes.FormRoutes(api)
 	routes.ResponderRoutes(api)
 	routes.ResponseRoutes(api)
+	routes.AdminRoutes(api)
 	routes.AuthRoutes(api)
 
 	router.Run(":8080")

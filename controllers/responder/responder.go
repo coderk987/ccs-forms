@@ -2,12 +2,19 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
 
 type Response struct {
 	ID        int64     `json:"id"`
@@ -16,13 +23,12 @@ type Response struct {
 }
 
 type AnswerRequest struct {
-	QuestionID        int64           `json:"question_id" binding:"required"`
-	Payload           json.RawMessage `json:"payload" binding:"required"`
-	CheckboxOptionIDs []int64         `json:"checkbox_option_ids"`
+	QuestionID int64           `json:"question_id"`
+	Payload    json.RawMessage `json:"payload"`
 }
 
 type CreateResponseRequest struct {
-	Answers []AnswerRequest `json:"answers" binding:"required,min=1,dive"`
+	Answers map[string]json.RawMessage `json:"answers" binding:"required"`
 }
 
 func currentUserID(c *gin.Context) (int64, bool) {
@@ -32,19 +38,22 @@ func currentUserID(c *gin.Context) (int64, bool) {
 		return 0, false
 	}
 
-	userIDClaim, ok := claim.(string)
-	if !ok {
+	switch value := claim.(type) {
+	case int64:
+		return value, true
+	case int:
+		return int64(value), true
+	case string:
+		userID, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user"})
+			return 0, false
+		}
+		return userID, true
+	default:
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user"})
 		return 0, false
 	}
-
-	userID, err := strconv.ParseInt(userIDClaim, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user"})
-		return 0, false
-	}
-
-	return userID, true
 }
 
 func publishedFormID(c *gin.Context) (int64, bool) {

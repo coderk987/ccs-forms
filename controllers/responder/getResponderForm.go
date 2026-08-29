@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func draftFormID(c *gin.Context) (int64, bool) {
+func responderFormID(c *gin.Context) (int64, bool) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Form id must be a valid integer"})
@@ -25,15 +25,22 @@ func draftFormID(c *gin.Context) (int64, bool) {
 }
 
 func GetResponderForm(c *gin.Context) {
-	id, ok := draftFormID(c)
+	id, ok := responderFormID(c)
 	if !ok {
 		return
 	}
 
+	userID := c.GetInt64("userID")
 	var row json.RawMessage
 	err := db.Pool.QueryRow(c.Request.Context(),
-		`SELECT structure FROM published_forms WHERE id=$1 ORDER BY id DESC`,
-		id,
+		`SELECT structure
+		 FROM published_forms f
+		 WHERE f.id = $1
+		   AND (f.author_id = $2 OR EXISTS (
+			SELECT 1 FROM view_permissions v
+			WHERE v.form_id = f.id AND v.user_id = $2
+		   ))`,
+		id, userID,
 	).Scan(&row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

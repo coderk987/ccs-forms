@@ -339,22 +339,30 @@ WHERE u.gmail = 'charlie@example.com'
 -- These are sample answers against the draft question definitions.
 -- In the real publish flow, questions would belong to the published form's
 -- cloned structure before responses are accepted.
-INSERT INTO answers (response_id, question_id, payload)
+INSERT INTO answers (response_id, question_id, payload, structure)
 SELECT
     r.id,
     q.id,
-    '{"value": "Charlie Kumar"}'::jsonb
+    '"Charlie Kumar"'::jsonb,
+    jsonb_build_object(
+        'question_id', q.id,
+        'payload', '"Charlie Kumar"'::jsonb
+    )
 FROM responses r
 JOIN published_forms p ON p.id = r.form_id
 JOIN questions q ON q.title = 'What is your name?'
 WHERE p.title = 'Developer Experience Survey'
   AND r.user_id = (SELECT id FROM users WHERE gmail = 'charlie@example.com');
 
-INSERT INTO answers (response_id, question_id, payload)
+INSERT INTO answers (response_id, question_id, payload, structure)
 SELECT
     r.id,
     q.id,
-    '{"value": "Go"}'::jsonb
+    '"Go"'::jsonb,
+    jsonb_build_object(
+        'question_id', q.id,
+        'payload', '"Go"'::jsonb
+    )
 FROM responses r
 JOIN published_forms p ON p.id = r.form_id
 JOIN questions q ON q.title = 'What is your primary programming language?'

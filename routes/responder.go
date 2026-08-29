@@ -8,7 +8,7 @@ import (
 )
 
 func ResponderRoutes(router *gin.RouterGroup) {
-	form := router.Group("/forms")
+	form := router.Group("/form")
 	form.Use(middleware.AuthMiddleware())
 
 	form.GET("/:id", controllers.GetResponderForm)

@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS responses (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     form_id BIGINT NOT NULL REFERENCES published_forms(id) ON DELETE CASCADE,
-    "timestamp" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    "timestamp" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, form_id)
 );
 
 CREATE TABLE IF NOT EXISTS answers (
@@ -73,6 +74,7 @@ CREATE TABLE IF NOT EXISTS answers (
     response_id BIGINT NOT NULL REFERENCES responses(id) ON DELETE CASCADE,
     question_id BIGINT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
     payload JSONB NOT NULL,
+    structure JSONB NOT NULL,
     UNIQUE (response_id, question_id)
 );
 
