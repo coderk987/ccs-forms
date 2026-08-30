@@ -69,11 +69,8 @@ func CreateResponse(c *gin.Context) {
 	err := db.Pool.QueryRow(ctx, `
 		SELECT f.structure, f.deadline IS NOT NULL AND f.deadline < NOW()
 		FROM published_forms f
-		WHERE f.id = $1
-			AND (f.author_id = $2 OR EXISTS (
-				SELECT 1 FROM view_permissions v
-				WHERE v.form_id = f.id AND v.user_id = $2))`,
-		formID, userID,
+		WHERE f.id = $1`,
+		formID,
 	).Scan(&formStructure, &form.Closed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
@@ -103,7 +100,7 @@ func CreateResponse(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "User has already responded to this form"})
 		return
 	}
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not check existing response"})
 		return
 	}
@@ -287,7 +284,7 @@ func CreateResponse(c *gin.Context) {
 			response.ID, answer.QuestionID, []byte(answer.Payload), []byte(answer.Structure),
 		).Scan(&answerID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save answers"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
@@ -300,7 +297,7 @@ func CreateResponse(c *gin.Context) {
 				answerID, optionID, answer.QuestionID,
 			)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save answers"})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
 			if result.RowsAffected() == 0 {

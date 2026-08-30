@@ -169,6 +169,83 @@ SELECT 'Systems & Networking', q.id, NULL
 FROM questions q
 WHERE q.title = 'Which workshop track do you prefer?';
 
+-- EDIT_ROUTE_TEST_FORM
+INSERT INTO draft_forms (title, description, author_id)
+SELECT
+    'Edit Route Test Form',
+    'Fixture for testing draft form edits.',
+    id
+FROM users
+WHERE gmail = 'alice@example.com';
+
+INSERT INTO sections (title, description, form_id, position)
+SELECT
+    'Editable Details',
+    'Section used to test section changes.',
+    id,
+    1
+FROM draft_forms
+WHERE title = 'Edit Route Test Form'
+  AND author_id = (SELECT id FROM users WHERE gmail = 'alice@example.com');
+
+INSERT INTO sections (title, description, form_id, position)
+SELECT
+    'Editable Preferences',
+    'Section used to test question and option changes.',
+    id,
+    2
+FROM draft_forms
+WHERE title = 'Edit Route Test Form'
+  AND author_id = (SELECT id FROM users WHERE gmail = 'alice@example.com');
+
+INSERT INTO questions (title, type, validation, section_id, position)
+SELECT
+    'Editable name',
+    'text',
+    '{"required": true, "maxLength": 100}'::jsonb,
+    s.id,
+    1
+FROM sections s
+JOIN draft_forms f ON f.id = s.form_id
+WHERE s.title = 'Editable Details'
+  AND f.title = 'Edit Route Test Form';
+
+INSERT INTO questions (title, type, validation, section_id, position)
+SELECT
+    'Editable tools',
+    'checkbox',
+    '{"required": false, "minSelections": 1, "maxSelections": 3}'::jsonb,
+    s.id,
+    1
+FROM sections s
+JOIN draft_forms f ON f.id = s.form_id
+WHERE s.title = 'Editable Preferences'
+  AND f.title = 'Edit Route Test Form';
+
+INSERT INTO questions (title, type, validation, section_id, position)
+SELECT
+    'Editable experience',
+    'mcq',
+    '{"required": true}'::jsonb,
+    s.id,
+    2
+FROM sections s
+JOIN draft_forms f ON f.id = s.form_id
+WHERE s.title = 'Editable Preferences'
+  AND f.title = 'Edit Route Test Form';
+
+INSERT INTO checkbox_options (title, question_id)
+SELECT option_data.title, q.id
+FROM questions q
+CROSS JOIN (VALUES ('Go'), ('PostgreSQL'), ('Docker')) AS option_data(title)
+WHERE q.title = 'Editable tools';
+
+INSERT INTO mcq_options (title, question_id, unlock_section_id)
+SELECT option_data.title, q.id, NULL
+FROM questions q
+CROSS JOIN (VALUES ('Beginner'), ('Intermediate'), ('Advanced')) AS option_data(title)
+WHERE q.title = 'Editable experience';
+
 -- PUBLISHED_FORMS
 INSERT INTO published_forms (title, description, author_id, deadline, structure)
 SELECT

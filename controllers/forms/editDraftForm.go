@@ -68,22 +68,25 @@ func EditDraftForm(c *gin.Context) {
 
 	var req EditDraftFormRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Body"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Body", "message": err.Error()})
 		return
 	}
 
 	//Will add Retry later on
-	for _, section := range req.Sections {
+	for sectionIndex := range req.Sections {
+		section := &req.Sections[sectionIndex]
 		if section.Status == "UNCHANGED" {
 			continue
 		}
 
 		//sql queries for different actions
 		if section.Status == "ADD" {
-			_, err := db.Pool.Exec(c.Request.Context(),
-				`INSERT INTO sections (title, description, position, form_id) VALUES ($1, $2, $3, $4)`,
+			err := db.Pool.QueryRow(c.Request.Context(),
+				`INSERT INTO sections (title, description, position, form_id)
+				 VALUES ($1, $2, $3, $4)
+				 RETURNING id`,
 				section.Title, section.Description, section.Position, id,
-			)
+			).Scan(&section.ID)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update properly"})
 				return
@@ -110,17 +113,20 @@ func EditDraftForm(c *gin.Context) {
 		}
 
 		//iterating over questions
-		for _, question := range section.Questions {
+		for questionIndex := range section.Questions {
+			question := &section.Questions[questionIndex]
 			if question.Status == "UNCHANGED" {
 				continue
 			}
 
 			//sql queries for actions on different questions
 			if question.Status == "ADD" {
-				_, err := db.Pool.Exec(c.Request.Context(),
-					`INSERT INTO questions (title, position, type, validation, section_id) VALUES ($1, $2, $3, $4, $5)`,
+				err := db.Pool.QueryRow(c.Request.Context(),
+					`INSERT INTO questions (title, position, type, validation, section_id)
+					 VALUES ($1, $2, $3, $4, $5)
+					 RETURNING id`,
 					question.Title, question.Position, question.Type, question.Validation, section.ID,
-				)
+				).Scan(&question.ID)
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update properly"})
 					return
@@ -160,21 +166,24 @@ func EditDraftForm(c *gin.Context) {
 					return
 				}
 
-				for _, option := range question.Options {
+				for optionIndex := range question.Options {
+					option := &question.Options[optionIndex]
 					if option.Status == "UNCHANGED" {
 						continue
 					}
 					//sql querie sfor diff actions on options
 					if option.Status == "ADD" {
-						_, err := db.Pool.Exec(c.Request.Context(),
-							`INSERT INTO `+tableName+` (title, question_id) VALUES ($1, $2)`,
+						err := db.Pool.QueryRow(c.Request.Context(),
+							`INSERT INTO `+tableName+` (title, question_id)
+							 VALUES ($1, $2)
+							 RETURNING id`,
 							option.Title, question.ID,
-						)
+						).Scan(&option.ID)
 						if err != nil {
 							c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update properly"})
 							return
 						}
-					} else if question.Status == "CHANGE" {
+					} else if option.Status == "CHANGE" {
 						_, err := db.Pool.Exec(c.Request.Context(),
 							`UPDATE `+tableName+` SET title = $1 WHERE id = $2`,
 							option.Title, option.ID,

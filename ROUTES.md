@@ -24,8 +24,12 @@ QUERY /published_forms/:id/analytics => [work in progress]
 
 RESPONDER
 GET /form/:id => form from a responders pov ✅
-POST /form/:id/response => add a response to the given form id !!
+POST /form/:id/response => add a response to the given form id ✅
 
 RESPONSES
 DELETE /response/:id => takeback the response ✅
-GET /responses/:id => get the information of a response
+GET /responses/:id => get the information of a response ✅
+
+ADMIN
+PATCH /users/admin => makes a user an admin
+POST /forms/:id/view-permissions => grants view permission to a user ✅
