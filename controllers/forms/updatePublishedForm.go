@@ -39,17 +39,17 @@ func UpdatePublishedForm(c *gin.Context) {
 
 	var form PublishedForm
 	err := db.Pool.QueryRow(c.Request.Context(), `
-		UPDATE draft_forms SET title = COALESCE($1, title), description = COALESCE($2, description), deadline = COALESCE($3, deadline)
+		UPDATE published_forms SET title = COALESCE($1, title), description = COALESCE($2, description), deadline = COALESCE($3, deadline)
 		WHERE id = $4 AND author_id = $5
-		RETURNING *`,
+		RETURNING id, title, description, deadline`,
 		req.Title, req.Description, req.Deadline, id, userID,
-	).Scan(&form)
+	).Scan(&form.ID, &form.Title, &form.Description, &form.Deadline)
 	if errors.Is(err, pgx.ErrNoRows) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Published form not found"})
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update Published form"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update Published form", "message": err.Error()})
 		return
 	}
 

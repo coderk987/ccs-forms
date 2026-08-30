@@ -15,11 +15,11 @@ func DeleteResponse(c *gin.Context) {
 	}
 
 	result, err := db.Pool.Exec(c.Request.Context(),
-		`DELETE FROM responses WHERE id=$1 AND author_id=$2`,
+		`DELETE FROM responses WHERE id=$1 AND user_id=$2`,
 		id, userID,
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not delete response"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not delete response", "message": err.Error()})
 		return
 	}
 	if result.RowsAffected() == 0 {

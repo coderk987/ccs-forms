@@ -15,30 +15,30 @@ type EditDraftFormRequest struct {
 }
 
 type FormSections struct {
-	ID          int64           `db:"id"`
-	Title       string          `db:"title"`
-	Description string          `db:"description"`
-	Position    int64           `db:"position"`
-	Status      string          `db:"-"`
-	Questions   []FormQuestions `db:"-"`
+	ID          int64           `json:"id" db:"id"`
+	Title       string          `json:"title" db:"title"`
+	Description string          `json:"description" db:"description"`
+	Position    int64           `json:"position" db:"position"`
+	Status      string          `json:"status" db:"-"`
+	Questions   []FormQuestions `json:"questions" db:"-"`
 }
 
 type FormQuestions struct {
-	ID         int64             `db:"id"`
-	Title      string            `db:"title"`
-	Type       string            `db:"type"`
-	Validation json.RawMessage   `db:"validation"`
-	Position   int64             `db:"position"`
-	Status     string            `db:"-"`
-	Options    []QuestionOptions `db:"-"`
-	SectionID  int64             `db:"section_id"`
+	ID         int64             `json:"id" db:"id"`
+	Title      string            `json:"title" db:"title"`
+	Type       string            `json:"type" db:"type"`
+	Validation json.RawMessage   `json:"validation" db:"validation"`
+	Position   int64             `json:"position" db:"position"`
+	Status     string            `json:"status" db:"-"`
+	Options    []QuestionOptions `json:"options" db:"-"`
+	SectionID  int64             `json:"section_id" db:"section_id"`
 }
 
 type QuestionOptions struct {
-	ID         int64  `db:"id"`
-	Status     string `db:"-"`
-	Title      string `db:"title"`
-	QuestionID int64  `db:"question_id"`
+	ID         int64  `json:"id" db:"id"`
+	Status     string `json:"status" db:"-"`
+	Title      string `json:"title" db:"title"`
+	QuestionID int64  `json:"question_id" db:"question_id"`
 }
 
 func EditDraftForm(c *gin.Context) {
