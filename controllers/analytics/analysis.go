@@ -1,4 +1,4 @@
-package analytics
+package controllers
 
 import (
 	"ccs-forms/db"
