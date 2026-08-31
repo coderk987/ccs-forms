@@ -28,6 +28,17 @@ type answerInsert struct {
 	CheckboxOptionIDs []int64
 }
 
+type answerBatchInsert struct {
+	QuestionID int64           `json:"question_id"`
+	Payload    json.RawMessage `json:"payload"`
+	Structure  json.RawMessage `json:"structure"`
+}
+
+type checkboxAnswerInsert struct {
+	AnswerID int64
+	OptionID int64
+}
+
 func validationMin(v textValidation) *int {
 	if v.Min != nil {
 		return v.Min
@@ -221,11 +232,17 @@ func CreateResponse(c *gin.Context) {
 			for _, option := range question.Options {
 				validOptions[option.ID] = struct{}{}
 			}
+			seenOptions := make(map[int64]struct{}, len(optionIDs))
 			for _, optionID := range optionIDs {
 				if _, exists := validOptions[optionID]; !exists {
 					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid checkbox option"})
 					return
 				}
+				if _, exists := seenOptions[optionID]; exists {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Checkbox answers cannot contain duplicate options"})
+					return
+				}
+				seenOptions[optionID] = struct{}{}
 			}
 			insert.CheckboxOptionIDs = optionIDs
 		default:
@@ -275,35 +292,78 @@ func CreateResponse(c *gin.Context) {
 		return
 	}
 
+	batch := make([]answerBatchInsert, 0, len(answerRows))
 	for _, answer := range answerRows {
-		var answerID int64
-		err = tx.QueryRow(ctx, `
-			INSERT INTO answers (response_id, question_id, payload, structure)
-			VALUES ($1, $2, $3, $4)
-			RETURNING id`,
-			response.ID, answer.QuestionID, []byte(answer.Payload), []byte(answer.Structure),
-		).Scan(&answerID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		batch = append(batch, answerBatchInsert{
+			QuestionID: answer.QuestionID,
+			Payload:    answer.Payload,
+			Structure:  answer.Structure,
+		})
+	}
+	batchJSON, err := json.Marshal(batch)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not prepare answers"})
+		return
+	}
+
+	answerIDs := make(map[int64]int64, len(batch))
+	rows, err := tx.Query(ctx, `
+		INSERT INTO answers (response_id, question_id, payload, structure)
+		SELECT $1, x.question_id, x.payload, x.structure
+		FROM jsonb_to_recordset($2::jsonb) AS x(
+			question_id BIGINT,
+			payload JSONB,
+			structure JSONB
+		)
+		RETURNING id, question_id`, response.ID, batchJSON)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save answers"})
+		return
+	}
+	for rows.Next() {
+		var answerID, questionID int64
+		if err := rows.Scan(&answerID, &questionID); err != nil {
+			rows.Close()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not read saved answers"})
 			return
 		}
+		answerIDs[questionID] = answerID
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save answers"})
+		return
+	}
+	rows.Close()
 
+	checkboxPairs := make([]checkboxAnswerInsert, 0)
+	for _, answer := range answerRows {
+		answerID := answerIDs[answer.QuestionID]
 		for _, optionID := range answer.CheckboxOptionIDs {
-			result, err := tx.Exec(ctx, `
-				INSERT INTO checkbox_answers (checkbox_option_id, answer_id)
-				SELECT o.id, $1
-				FROM checkbox_options o
-				WHERE o.id = $2 AND o.question_id = $3`,
-				answerID, optionID, answer.QuestionID,
-			)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			if result.RowsAffected() == 0 {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid checkbox option"})
-				return
-			}
+			checkboxPairs = append(checkboxPairs, checkboxAnswerInsert{AnswerID: answerID, OptionID: optionID})
+		}
+	}
+	if len(checkboxPairs) > 0 {
+		answerIDValues := make([]int64, 0, len(checkboxPairs))
+		optionIDValues := make([]int64, 0, len(checkboxPairs))
+		for _, pair := range checkboxPairs {
+			answerIDValues = append(answerIDValues, pair.AnswerID)
+			optionIDValues = append(optionIDValues, pair.OptionID)
+		}
+		result, err := tx.Exec(ctx, `
+			INSERT INTO checkbox_answers (checkbox_option_id, answer_id)
+			SELECT o.id, x.answer_id
+			FROM unnest($1::bigint[], $2::bigint[]) AS x(answer_id, option_id)
+			JOIN checkbox_options o ON o.id = x.option_id
+			JOIN answers a ON a.id = x.answer_id
+				AND a.question_id = o.question_id`, answerIDValues, optionIDValues)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save checkbox answers"})
+			return
+		}
+		if result.RowsAffected() != int64(len(checkboxPairs)) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid checkbox option"})
+			return
 		}
 	}
 

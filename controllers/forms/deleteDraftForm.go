@@ -15,6 +15,19 @@ func DeleteDraftForm(c *gin.Context) {
 		return
 	}
 
+	var published bool
+	err := db.Pool.QueryRow(c.Request.Context(),
+		`SELECT EXISTS (SELECT 1 FROM published_forms WHERE id = $1)`, id,
+	).Scan(&published)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not check form status"})
+		return
+	}
+	if published {
+		c.JSON(http.StatusConflict, gin.H{"error": "Published forms cannot be deleted"})
+		return
+	}
+
 	result, err := db.Pool.Exec(c.Request.Context(), `
 		DELETE FROM draft_forms WHERE id = $1 AND author_id = $2`, id, userID)
 	if err != nil {

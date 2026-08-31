@@ -66,6 +66,19 @@ func EditDraftForm(c *gin.Context) {
 		return
 	}
 
+	var published bool
+	err = db.Pool.QueryRow(c.Request.Context(),
+		`SELECT EXISTS (SELECT 1 FROM published_forms WHERE id = $1)`, id,
+	).Scan(&published)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not check form status"})
+		return
+	}
+	if published {
+		c.JSON(http.StatusConflict, gin.H{"error": "Published forms cannot be edited"})
+		return
+	}
+
 	var req EditDraftFormRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Body", "message": err.Error()})
