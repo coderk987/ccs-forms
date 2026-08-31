@@ -43,7 +43,8 @@ func LoginUser(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(404, gin.H{
-				"error": "email not found",
+				"error":   "email not found",
+				"message": err.Error(),
 			})
 			return
 		}

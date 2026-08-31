@@ -3,7 +3,6 @@ package db
 import (
 	"ccs-forms/config"
 	"context"
-	"fmt"
 	"log"
 	"os"
 
@@ -18,13 +17,25 @@ func PostgresConnect() {
 
 	if err != nil {
 		if config.IsDev() {
-			fmt.Errorf("Error loading .env: %v", err)
+			log.Printf("warning: could not load .env: %v", err)
+		} else {
+			log.Println("warning: no .env file found, using system environment variables")
 		}
-		log.Println("warning: no .env file found, using system environement variables")
 	}
 
 	dbURL := os.Getenv("DATABASE_URL")
-	pool, err := pgxpool.New(context.Background(), dbURL)
+
+	poolConfig, err := pgxpool.ParseConfig(dbURL)
+	if err != nil {
+		log.Fatalf("Error parsing PostgreSQL config: %v", err)
+	}
+
+	poolConfig.MaxConns = 10
+
+	pool, err := pgxpool.NewWithConfig(
+		context.Background(),
+		poolConfig,
+	)
 	if err != nil {
 		Pool = nil
 		log.Fatalf("Error connecting to PostgreSQL: %v", err)
