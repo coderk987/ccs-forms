@@ -11,17 +11,17 @@ import (
 )
 
 type responseRow struct {
-	ID        int64  `json:"id"`
-	UserID    int64  `json:"user_id"`
-	FormID    int64  `json:"form_id"`
-	Timestamp string `json:"timestamp"`
+	ID        int64           `json:"id"`
+	UserID    int64           `json:"user_id"`
+	FormID    int64           `json:"form_id"`
+	Timestamp string          `json:"timestamp"`
+	Structure json.RawMessage `json:"structure"`
 }
 
 type responseAnswerRow struct {
 	ID         int64           `db:"id" json:"id"`
 	QuestionID int64           `db:"question_id" json:"question_id"`
 	Payload    json.RawMessage `db:"payload" json:"payload"`
-	Structure  json.RawMessage `db:"structure" json:"structure"`
 }
 
 func GetResponse(c *gin.Context) {
@@ -33,7 +33,7 @@ func GetResponse(c *gin.Context) {
 
 	var response responseRow
 	err := db.Pool.QueryRow(c.Request.Context(), `
-		SELECT r.id, r.user_id, r.form_id, r."timestamp"::text
+		SELECT r.id, r.user_id, r.form_id, r."timestamp"::text, r.structure
 		FROM responses r
 		JOIN published_forms f ON f.id = r.form_id
 		WHERE r.id = $1
@@ -46,7 +46,7 @@ func GetResponse(c *gin.Context) {
 				)
 			)`,
 		id, userID,
-	).Scan(&response.ID, &response.UserID, &response.FormID, &response.Timestamp)
+	).Scan(&response.ID, &response.UserID, &response.FormID, &response.Timestamp, &response.Structure)
 	if errors.Is(err, pgx.ErrNoRows) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Response not found"})
 		return
@@ -57,7 +57,7 @@ func GetResponse(c *gin.Context) {
 	}
 
 	rows, err := db.Pool.Query(c.Request.Context(), `
-		SELECT id, question_id, payload, structure
+		SELECT id, question_id, payload
 		FROM answers
 		WHERE response_id = $1
 		ORDER BY id ASC`,

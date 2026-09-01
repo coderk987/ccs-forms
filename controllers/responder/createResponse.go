@@ -24,14 +24,12 @@ type textValidation struct {
 type answerInsert struct {
 	QuestionID        int64
 	Payload           json.RawMessage
-	Structure         json.RawMessage
 	CheckboxOptionIDs []int64
 }
 
 type answerBatchInsert struct {
 	QuestionID int64           `json:"question_id"`
 	Payload    json.RawMessage `json:"payload"`
-	Structure  json.RawMessage `json:"structure"`
 }
 
 type checkboxAnswerInsert struct {
@@ -141,15 +139,6 @@ func CreateResponse(c *gin.Context) {
 			return
 		}
 
-		structure, marshalErr := json.Marshal(AnswerRequest{
-			QuestionID: questionID,
-			Payload:    rawAnswer,
-		})
-		if marshalErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not prepare answers"})
-			return
-		}
-
 		var validation textValidation
 		if len(question.Validation) > 0 {
 			if err := json.Unmarshal(question.Validation, &validation); err != nil {
@@ -161,7 +150,6 @@ func CreateResponse(c *gin.Context) {
 		insert := answerInsert{
 			QuestionID: questionID,
 			Payload:    rawAnswer,
-			Structure:  structure,
 		}
 
 		switch question.Type {
@@ -268,6 +256,11 @@ func CreateResponse(c *gin.Context) {
 			}
 		}
 	}
+	responseStructure, err := json.Marshal(req.Answers)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not prepare response"})
+		return
+	}
 
 	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
@@ -278,11 +271,11 @@ func CreateResponse(c *gin.Context) {
 
 	var response Response
 	err = tx.QueryRow(ctx, `
-		INSERT INTO responses (user_id, form_id)
-		VALUES ($1, $2)
-		RETURNING id, form_id, "timestamp"`,
-		userID, formID,
-	).Scan(&response.ID, &response.FormID, &response.Timestamp)
+		INSERT INTO responses (user_id, form_id, structure)
+		VALUES ($1, $2, $3)
+		RETURNING id, form_id, "timestamp", structure`,
+		userID, formID, responseStructure,
+	).Scan(&response.ID, &response.FormID, &response.Timestamp, &response.Structure)
 	if err != nil {
 		if isUniqueViolation(err) {
 			c.JSON(http.StatusConflict, gin.H{"error": "User has already responded to this form"})
@@ -297,7 +290,6 @@ func CreateResponse(c *gin.Context) {
 		batch = append(batch, answerBatchInsert{
 			QuestionID: answer.QuestionID,
 			Payload:    answer.Payload,
-			Structure:  answer.Structure,
 		})
 	}
 	batchJSON, err := json.Marshal(batch)
@@ -308,12 +300,11 @@ func CreateResponse(c *gin.Context) {
 
 	answerIDs := make(map[int64]int64, len(batch))
 	rows, err := tx.Query(ctx, `
-		INSERT INTO answers (response_id, question_id, payload, structure)
-		SELECT $1, x.question_id, x.payload, x.structure
+		INSERT INTO answers (response_id, question_id, payload)
+		SELECT $1, x.question_id, x.payload
 		FROM jsonb_to_recordset($2::jsonb) AS x(
 			question_id BIGINT,
-			payload JSONB,
-			structure JSONB
+			payload JSONB
 		)
 		RETURNING id, question_id`, response.ID, batchJSON)
 	if err != nil {

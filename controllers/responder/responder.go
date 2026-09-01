@@ -17,14 +17,10 @@ func isUniqueViolation(err error) bool {
 }
 
 type Response struct {
-	ID        int64     `json:"id"`
-	FormID    int64     `json:"form_id"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-type AnswerRequest struct {
-	QuestionID int64           `json:"question_id"`
-	Payload    json.RawMessage `json:"payload"`
+	ID        int64           `json:"id"`
+	FormID    int64           `json:"form_id"`
+	Timestamp time.Time       `json:"timestamp"`
+	Structure json.RawMessage `json:"structure"`
 }
 
 type CreateResponseRequest struct {
