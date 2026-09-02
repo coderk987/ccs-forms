@@ -3,10 +3,12 @@ package controllers
 import (
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -46,6 +48,7 @@ func buildCSV(ctx context.Context, formID, userID int64) (string, [][]string, er
 	}
 	header := []string{"Response ID", "Submitted at", "Respondent"}
 	col := make(map[int64]int) // question id -> column index
+	questionTypes := make(map[int64]string)
 	for rows.Next() {
 		var qid int64
 		var qtitle string
@@ -61,9 +64,41 @@ func buildCSV(ctx context.Context, formID, userID int64) (string, [][]string, er
 		return "", nil, err
 	}
 
-	// 2. responses, oldest first -> these become the rows
+	// The response structure is the submission snapshot. It must be used for
+	// values instead of answers.question_id, because published forms retain a
+	// JSON snapshot while the draft question rows may later change.
 	rows, err = db.Pool.Query(ctx, `
-		SELECT r.id, r."timestamp", u.name, u.gmail
+		SELECT q.id, q.type
+		FROM questions q
+		JOIN sections s ON s.id = q.section_id
+		WHERE s.form_id = $1`, formID)
+	if err != nil {
+		return "", nil, err
+	}
+	for rows.Next() {
+		var qid int64
+		var qtype string
+		if err := rows.Scan(&qid, &qtype); err != nil {
+			rows.Close()
+			return "", nil, err
+		}
+		questionTypes[qid] = qtype
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return "", nil, err
+	}
+	rows.Close()
+
+	optionLabels, err := csvOptionLabels(ctx, formID)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// 2. responses, oldest first -> these become the rows. Structure contains
+	// answer values keyed by question ID, exactly as submitted by the client.
+	rows, err = db.Pool.Query(ctx, `
+		SELECT r.id, r."timestamp", u.name, u.gmail, r.structure
 		FROM responses r
 		JOIN users u ON u.id = r.user_id
 		WHERE r.form_id = $1
@@ -72,12 +107,12 @@ func buildCSV(ctx context.Context, formID, userID int64) (string, [][]string, er
 		return "", nil, err
 	}
 	out := [][]string{header}
-	at := make(map[int64]int) // response id -> row index in out
 	for rows.Next() {
 		var rid int64
 		var ts time.Time
 		var name, email string
-		if err := rows.Scan(&rid, &ts, &name, &email); err != nil {
+		var structure json.RawMessage
+		if err := rows.Scan(&rid, &ts, &name, &email, &structure); err != nil {
 			rows.Close()
 			return "", nil, err
 		}
@@ -85,7 +120,10 @@ func buildCSV(ctx context.Context, formID, userID int64) (string, [][]string, er
 		row[0] = fmt.Sprint(rid)
 		row[1] = ts.Format(time.RFC3339)
 		row[2] = fmt.Sprintf("%s <%s>", name, email)
-		at[rid] = len(out)
+		if err := fillCSVAnswers(row, structure, col, questionTypes, optionLabels); err != nil {
+			rows.Close()
+			return "", nil, err
+		}
 		out = append(out, row)
 	}
 	rows.Close()
@@ -93,49 +131,108 @@ func buildCSV(ctx context.Context, formID, userID int64) (string, [][]string, er
 		return "", nil, err
 	}
 
-	// 3. every answer, already flattened to the text that goes in the cell
-	rows, err = db.Pool.Query(ctx, `
-		SELECT a.response_id, a.question_id,
-			CASE q.type
-				WHEN 'checkbox' THEN COALESCE((
-					SELECT string_agg(o.title, '; ' ORDER BY o.id)
-					FROM checkbox_answers ca
-					JOIN checkbox_options o ON o.id = ca.checkbox_option_id
-					WHERE ca.answer_id = a.id), '')
-				WHEN 'mcq' THEN COALESCE((
-					SELECT o.title
-					FROM mcq_options o
-					WHERE o.question_id = a.question_id
-						AND (a.payload->>'option_id' = o.id::text
-							OR a.payload::text = o.id::text)), '')
-				ELSE COALESCE(a.payload->>'text', a.payload->>'value',
-					a.payload #>> '{}', '')
-			END
-		FROM answers a
-		JOIN questions q ON q.id = a.question_id
-		JOIN responses r ON r.id = a.response_id
-		WHERE r.form_id = $1`, formID)
+	return title, out, nil
+}
+
+func csvOptionLabels(ctx context.Context, formID int64) (map[int64]map[int64]string, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT q.id, o.id, o.title FROM mcq_options o
+		JOIN questions q ON q.id = o.question_id
+		JOIN sections s ON s.id = q.section_id
+		WHERE s.form_id = $1
+		UNION ALL
+		SELECT q.id, o.id, o.title FROM checkbox_options o
+		JOIN questions q ON q.id = o.question_id
+		JOIN sections s ON s.id = q.section_id
+		WHERE s.form_id = $1`, formID)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	defer rows.Close()
+
+	labels := make(map[int64]map[int64]string)
 	for rows.Next() {
-		var rid, qid int64
-		var value string
-		if err := rows.Scan(&rid, &qid, &value); err != nil {
-			return "", nil, err
+		var qid int64
+		var id int64
+		var label string
+		if err := rows.Scan(&qid, &id, &label); err != nil {
+			return nil, err
 		}
-		i, okRow := at[rid]
-		j, okCol := col[qid]
-		if okRow && okCol {
-			out[i][j] = value
+		if labels[qid] == nil {
+			labels[qid] = make(map[int64]string)
 		}
+		labels[qid][id] = label
 	}
-	if err := rows.Err(); err != nil {
-		return "", nil, err
+	return labels, rows.Err()
+}
+
+func fillCSVAnswers(row []string, structure json.RawMessage, columns map[int64]int, types map[int64]string, labels map[int64]map[int64]string) error {
+	var answers map[string]json.RawMessage
+	if err := json.Unmarshal(structure, &answers); err != nil {
+		return err
+	}
+	for key, raw := range answers {
+		var qid int64
+		if _, err := fmt.Sscan(key, &qid); err != nil {
+			continue
+		}
+		column, ok := columns[qid]
+		if !ok {
+			continue
+		}
+		value, err := formatCSVAnswer(raw, types[qid], labels[qid])
+		if err != nil {
+			return err
+		}
+		row[column] = value
+	}
+	return nil
+}
+
+func formatCSVAnswer(raw json.RawMessage, questionType string, labels map[int64]string) (string, error) {
+	if questionType == "mcq" || questionType == "checkbox" {
+		var ids []json.RawMessage
+		if len(raw) > 0 && raw[0] == '[' {
+			if err := json.Unmarshal(raw, &ids); err != nil {
+				return "", err
+			}
+		} else {
+			ids = []json.RawMessage{raw}
+		}
+		values := make([]string, 0, len(ids))
+		for _, idRaw := range ids {
+			var id int64
+			if err := json.Unmarshal(idRaw, &id); err != nil {
+				var option struct {
+					ID int64 `json:"option_id"`
+				}
+				if json.Unmarshal(idRaw, &option) != nil {
+					return "", err
+				}
+				id = option.ID
+			}
+			if label, ok := labels[id]; ok {
+				values = append(values, label)
+			}
+		}
+		return strings.Join(values, "; "), nil
 	}
 
-	return title, out, nil
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return text, nil
+	}
+	var value struct {
+		Text  string `json:"text"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(raw, &value); err == nil {
+		if value.Text != "" {
+			return value.Text, nil
+		}
+		return value.Value, nil
+	}
+	return string(raw), nil
 }
 
 var unsafeName = regexp.MustCompile(`[^a-zA-Z0-9]+`)
@@ -188,14 +285,16 @@ func SaveFormCSV(ctx context.Context, formID, userID int64, dir string) (string,
 		return "", err
 	}
 
-	path := dir + "/" + fileName(title)
+	path := filepath.Join(dir, fileName(title))
 	f, err := os.Create(path)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
 
-	f.Write([]byte{0xEF, 0xBB, 0xBF})
+	if _, err := f.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		return "", err
+	}
 
 	w := csv.NewWriter(f)
 	if err := w.WriteAll(records); err != nil {

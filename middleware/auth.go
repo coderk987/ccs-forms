@@ -1,19 +1,19 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
-// genuinely fuck gin
+// AuthMiddleware authenticates bearer tokens and stores the verified user ID
+// in Gin's context for downstream handlers. It does not decide whether that
+// user may access a particular form; each handler still enforces ownership or
+// view permissions.
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		//get header check not empty
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
@@ -23,9 +23,10 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		//split and check token is proper
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
+		// Fields tolerates surrounding whitespace but rejects missing or extra
+		// token material.
+		parts := strings.Fields(authHeader)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "Invalid authorization header",
 			})
@@ -33,15 +34,13 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		//get the token string and parse it
-		tokenString := parts[1]
-		token, err := jwt.Parse(
-			tokenString,
-			func(token *jwt.Token) (interface{}, error) {
-				return []byte(os.Getenv("JWT_SECRET")), nil
-			},
-		)
-		if err != nil || !token.Valid {
+		userID, err := ParseUserID(parts[1])
+		if errors.Is(err, ErrJWTSecretNotConfigured) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Authentication is not configured"})
+			c.Abort()
+			return
+		}
+		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "Invalid token",
 			})
@@ -49,34 +48,8 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		//get the data from token
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid claims",
-			})
-			c.Abort()
-			return
-		}
-
-		//get user id from claims
-		userIDString, ok := claims["sub"].(string)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid user ID",
-			})
-			c.Abort()
-			return
-		}
-		//parse the user id and set it in context
-		userID, err := strconv.ParseInt(userIDString, 10, 64)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Couldnt Recognize the User",
-			})
-			c.Abort()
-			return
-		}
+		// The ID is set only after signature, algorithm, expiry, and subject
+		// validation have all succeeded.
 		c.Set("userID", userID)
 
 		c.Next()

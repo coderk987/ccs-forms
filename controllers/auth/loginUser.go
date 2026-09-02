@@ -2,29 +2,24 @@ package controllers
 
 import (
 	"ccs-forms/db"
-	"fmt"
+	"ccs-forms/middleware"
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
-
-	"github.com/golang-jwt/jwt/v5"
-
-	"os"
-	"time"
-
-	"errors"
-	"strconv"
 )
 
 type LoginRequest struct {
 	Email string `json:"email"`
 }
 
+// LoginUser is the prototype's passwordless email lookup. It deliberately
+// shares token issuance with OAuth so all tokens have identical claims and
+// signing rules. It is not an identity-proofing mechanism by itself.
 func LoginUser(c *gin.Context) {
 	var req LoginRequest
-
-	fmt.Println("Running Login")
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -32,40 +27,29 @@ func LoginUser(c *gin.Context) {
 		})
 		return
 	}
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email is required"})
+		return
+	}
 
 	var userId int
 	err := db.Pool.QueryRow(
 		c.Request.Context(),
 		`SELECT id FROM users WHERE gmail = $1`,
-		req.Email,
+		email,
 	).Scan(&userId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			c.JSON(404, gin.H{
-				"error":   "email not found",
-				"message": err.Error(),
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "email not found"})
 			return
 		}
-		c.JSON(500, gin.H{
-			"error": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not find user"})
 		return
 	}
 
-	claims := jwt.RegisteredClaims{
-		Subject:   strconv.Itoa(userId),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-	}
-
-	token := jwt.NewWithClaims(
-		jwt.SigningMethodHS256,
-		claims,
-	)
-
-	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	tokenString, err := middleware.SignToken(int64(userId))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create token"})
 		return

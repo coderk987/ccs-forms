@@ -10,13 +10,13 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strconv"
+	"strings"
 	"time"
 
 	"ccs-forms/db"
+	"ccs-forms/middleware"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -30,6 +30,8 @@ const (
 var errOAuthNotConfigured = errors.New("google oauth is not configured")
 
 func googleConfig() (*oauth2.Config, error) {
+	// Keep provider credentials server-side. The redirect URL must exactly match
+	// one registered in Google Cloud; localhost is only a development fallback.
 	clientID := os.Getenv("OAUTH_CLIENT_ID")
 	clientSecret := os.Getenv("OAUTH_CLIENT_SECRET")
 	if clientID == "" || clientSecret == "" {
@@ -50,16 +52,6 @@ func googleConfig() (*oauth2.Config, error) {
 	}, nil
 }
 
-func signToken(userID int64) (string, error) {
-	claims := jwt.RegisteredClaims{
-		Subject:   strconv.FormatInt(userID, 10),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-	}
-	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).
-		SignedString([]byte(os.Getenv("JWT_SECRET")))
-}
-
 func randomState() (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
@@ -69,6 +61,8 @@ func randomState() (string, error) {
 }
 
 func GoogleLogin(c *gin.Context) {
+	// OAuth state binds the browser that started the flow to the callback and
+	// prevents an attacker from injecting their own authorization response.
 	cfg, err := googleConfig()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Google sign-in is not configured"})
@@ -81,7 +75,9 @@ func GoogleLogin(c *gin.Context) {
 		return
 	}
 
-	secure := c.Request.TLS != nil
+	// The state cookie is short-lived, HttpOnly, and SameSite=Lax: it must be
+	// sent on Google's top-level redirect but not exposed to page JavaScript.
+	secure := requestUsesHTTPS(c)
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(oauthStateCookie, state, int(oauthStateTTL.Seconds()), "/", "", secure, true)
 
@@ -116,6 +112,8 @@ func fetchGoogleProfile(ctx context.Context, cfg *oauth2.Config, tok *oauth2.Tok
 }
 
 func GoogleCallback(c *gin.Context) {
+	// Validate state before exchanging the authorization code. The callback is
+	// otherwise an untrusted public request, even though Google redirects to it.
 	cfg, err := googleConfig()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Google sign-in is not configured"})
@@ -124,7 +122,8 @@ func GoogleCallback(c *gin.Context) {
 
 	want, cookieErr := c.Cookie(oauthStateCookie)
 	got := c.Query("state")
-	c.SetCookie(oauthStateCookie, "", -1, "/", "", c.Request.TLS != nil, true)
+	// Consume the state before any token exchange so it cannot be replayed.
+	c.SetCookie(oauthStateCookie, "", -1, "/", "", requestUsesHTTPS(c), true)
 
 	if cookieErr != nil || want == "" || got == "" ||
 		subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
@@ -155,14 +154,15 @@ func GoogleCallback(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Could not read Google profile"})
 		return
 	}
-	if profile.Email == "" || !profile.VerifiedEmail {
+	email := strings.ToLower(strings.TrimSpace(profile.Email))
+	if email == "" || !profile.VerifiedEmail {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Google account has no verified email"})
 		return
 	}
 
 	name := profile.Name
 	if name == "" {
-		name = profile.Email
+		name = email
 	}
 
 	var userID int64
@@ -170,17 +170,24 @@ func GoogleCallback(c *gin.Context) {
 		INSERT INTO users (gmail, name)
 		VALUES ($1, $2)
 		ON CONFLICT (gmail) DO UPDATE SET name = EXCLUDED.name
-		RETURNING id`, profile.Email, name).Scan(&userID)
+		RETURNING id`, email, name).Scan(&userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not sign in user"})
 		return
 	}
 
-	signed, err := signToken(userID)
+	signed, err := middleware.SignToken(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create token"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": signed, "email": profile.Email})
+	c.JSON(http.StatusOK, gin.H{"token": signed, "email": email})
+}
+
+// requestUsesHTTPS also handles the common TLS-terminating reverse-proxy
+// setup. X-Forwarded-Proto must only be trusted when the proxy is controlled
+// by the deployment; direct internet clients must not be able to set it.
+func requestUsesHTTPS(c *gin.Context) bool {
+	return c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
 }

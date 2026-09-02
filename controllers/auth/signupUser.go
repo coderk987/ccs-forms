@@ -2,15 +2,12 @@ package controllers
 
 import (
 	"ccs-forms/db"
+	"ccs-forms/middleware"
 	"errors"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -19,6 +16,10 @@ type SignupRequest struct {
 	Name  string `json:"name"`
 }
 
+// SignupUser creates a local user and returns the same signed token format
+// used by Google OAuth. This endpoint is retained for the prototype's
+// passwordless flow; production deployments should use Google sign-in or add
+// a real email-verification/password mechanism before exposing it publicly.
 func SignupUser(c *gin.Context) {
 	var req SignupRequest
 
@@ -37,6 +38,9 @@ func SignupUser(c *gin.Context) {
 		})
 		return
 	}
+	// Email login is intentionally small in this prototype, but normalize the
+	// identifier so signup, passwordless login, and Google OAuth use one key.
+	email = strings.ToLower(email)
 
 	var userID int64
 	err := db.Pool.QueryRow(
@@ -56,24 +60,11 @@ func SignupUser(c *gin.Context) {
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create user"})
 		return
 	}
 
-	claims := jwt.RegisteredClaims{
-		Subject:   strconv.FormatInt(userID, 10),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-	}
-
-	token := jwt.NewWithClaims(
-		jwt.SigningMethodHS256,
-		claims,
-	)
-
-	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	tokenString, err := middleware.SignToken(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create token"})
 		return
