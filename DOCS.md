@@ -641,5 +641,3 @@ Response: `201 Created`
 - Do not expose JWTs in URLs or log them in browser consoles.
 - Google OAuth login must be started as a browser navigation so its redirect
   and state cookie work correctly.
-
-  push change lol
