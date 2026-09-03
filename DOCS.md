@@ -10,6 +10,23 @@ The local server runs at:
 http://localhost:8080
 ```
 
+When the backend is exposed through a tunnel such as ngrok, the base URL is the
+tunnel's HTTPS URL instead, for example `https://<subdomain>.ngrok-free.app`.
+
+## CORS
+
+Browsers may call the API only from an origin on the allowlist. Set
+`CORS_ORIGINS` to a comma-separated list of exact origins (scheme, host and
+port), for example:
+
+```text
+CORS_ORIGINS=http://localhost:5173,https://ccs-forms.vercel.app
+```
+
+If `CORS_ORIGINS` is unset and `APP_ENV` is `dev`, `http://localhost:3000` and
+`http://localhost:5173` (and their `127.0.0.1` forms) are allowed. Credentials
+are not allowed: the API authenticates with bearer tokens, not cookies.
+
 There is no API version prefix. All IDs are positive integers. Dates and times
 are ISO-8601/RFC3339 values, for example `2026-09-02T18:30:00Z`.
 
@@ -106,6 +123,8 @@ Google OAuth requires:
 OAUTH_CLIENT_ID
 OAUTH_CLIENT_SECRET
 OAUTH_REDIRECT_URL
+FRONTEND_URL             # optional, see the callback below
+FRONTEND_CALLBACK_PATH   # optional, defaults to /auth/callback
 ```
 
 The redirect URL must exactly match the URL registered with Google. If it is
@@ -119,7 +138,20 @@ http://localhost:8080/auth/google/callback
 
 Google redirects here after authorization. The backend validates the OAuth
 state, exchanges the authorization code, requires a verified Google email,
-creates or updates the local user, and returns:
+creates or updates the local user, and then either redirects or returns JSON.
+
+If `FRONTEND_URL` is set, the browser is redirected to
+`<FRONTEND_URL><FRONTEND_CALLBACK_PATH>` with the result in the URL fragment:
+
+```text
+https://app.example.com/auth/callback#token=<jwt>&email=person%40example.com
+```
+
+The fragment is never sent to a server, so the token stays out of access logs
+and `Referer` headers. The frontend page at that path should read
+`window.location.hash`, store the token, and clear the hash.
+
+If `FRONTEND_URL` is not set, the endpoint responds with JSON instead:
 
 ```json
 {
@@ -128,8 +160,8 @@ creates or updates the local user, and returns:
 }
 ```
 
-The frontend should store the returned token according to its security policy
-and send it as a Bearer token on protected API calls.
+Either way, the frontend should store the token according to its security
+policy and send it as a Bearer token on protected API calls.
 
 ## Draft forms
 

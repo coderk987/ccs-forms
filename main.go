@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ccs-forms/middleware"
 	"ccs-forms/routes"
 	"fmt"
 
@@ -18,6 +19,7 @@ func main() {
 	}
 
 	router := gin.Default()
+	router.Use(middleware.CORSMiddleware())
 	router.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "Running Server",
