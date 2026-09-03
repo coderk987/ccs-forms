@@ -4,7 +4,6 @@ import (
 	"ccs-forms/middleware"
 	"ccs-forms/routes"
 	"fmt"
-	"os"
 
 	"github.com/gin-gonic/gin"
 
@@ -33,11 +32,5 @@ func main() {
 	routes.AdminRoutes(api)
 	routes.AuthRoutes(api)
 	routes.AnalyticsRoutes(api)
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	if err := router.Run("0.0.0.0:" + port); err != nil {
-		fmt.Printf("Error starting server: %v\n", err)
-	}
+	router.Run(":8080")
 }
