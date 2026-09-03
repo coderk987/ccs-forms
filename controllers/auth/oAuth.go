@@ -31,7 +31,7 @@ var errOAuthNotConfigured = errors.New("google oauth is not configured")
 
 func googleConfig() (*oauth2.Config, error) {
 	// Keep provider credentials server-side. The redirect URL must exactly match
-	// one registered in Google Cloud; localhost is only a development fallback.
+	// one registered in Google Cloud; 0.0.0.0 is only a development fallback.
 	clientID := os.Getenv("OAUTH_CLIENT_ID")
 	clientSecret := os.Getenv("OAUTH_CLIENT_SECRET")
 	if clientID == "" || clientSecret == "" {
@@ -40,7 +40,11 @@ func googleConfig() (*oauth2.Config, error) {
 
 	redirect := os.Getenv("OAUTH_REDIRECT_URL")
 	if redirect == "" {
-		redirect = "http://localhost:8080/auth/google/callback"
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8080"
+		}
+		redirect = "http://0.0.0.0:" + port + "/auth/google/callback"
 	}
 
 	return &oauth2.Config{

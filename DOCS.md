@@ -7,7 +7,14 @@ This document describes the HTTP API currently implemented by the backend.
 The local server runs at:
 
 ```text
-http://localhost:8080
+http://0.0.0.0:8080
+```
+
+The listen address is `0.0.0.0`; the port is read from `PORT` and defaults to
+`8080` when it is not set. For example:
+
+```env
+PORT=8080
 ```
 
 There is no API version prefix. All IDs are positive integers. Dates and times
@@ -112,7 +119,7 @@ The redirect URL must exactly match the URL registered with Google. If it is
 not configured, the development fallback is:
 
 ```text
-http://localhost:8080/auth/google/callback
+http://0.0.0.0:8080/auth/google/callback
 ```
 
 ### `GET /auth/google/callback`
