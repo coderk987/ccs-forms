@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -186,7 +187,40 @@ func GoogleCallback(c *gin.Context) {
 		return
 	}
 
+	// A browser reaches this endpoint by top-level redirect from Google, so a
+	// JSON body would leave the user staring at raw text. When a frontend is
+	// configured, hand the token back to it instead. The token travels in the
+	// URL fragment because fragments are never sent to a server, so it stays
+	// out of proxy and access logs and out of any Referer header.
+	if target, ok := frontendCallbackURL(); ok {
+		params := url.Values{}
+		params.Set("token", signed)
+		params.Set("email", email)
+		c.Redirect(http.StatusFound, target+"#"+params.Encode())
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"token": signed, "email": email})
+}
+
+// frontendCallbackURL is where the browser is sent once sign-in succeeds. It is
+// built from FRONTEND_URL so the same backend can serve a local dev server, an
+// ngrok tunnel, or a deployed frontend without a rebuild. FRONTEND_CALLBACK_PATH
+// overrides the default route for frontends that use a different one.
+func frontendCallbackURL() (string, bool) {
+	base := strings.TrimRight(strings.TrimSpace(os.Getenv("FRONTEND_URL")), "/")
+	if base == "" {
+		return "", false
+	}
+
+	path := strings.TrimSpace(os.Getenv("FRONTEND_CALLBACK_PATH"))
+	if path == "" {
+		path = "/auth/callback"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return base + path, true
 }
 
 // requestUsesHTTPS also handles the common TLS-terminating reverse-proxy
