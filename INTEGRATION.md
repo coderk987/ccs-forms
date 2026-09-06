@@ -246,3 +246,5 @@ The callback also deletes the state cookie *before* validating it, so a state
 can never be replayed. A reload or back-button on the callback page therefore
 always fails, even when the original attempt was fine. Retry by revisiting
 `/auth/google/login`, never by reloading.
+
+push action
