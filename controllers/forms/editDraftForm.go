@@ -205,7 +205,7 @@ func EditDraftForm(c *gin.Context) {
 							c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update properly"})
 							return
 						}
-					} else if question.Status == "DELETE" {
+					} else if option.Status == "DELETE" {
 						_, err := db.Pool.Exec(c.Request.Context(),
 							`DELETE FROM `+tableName+` WHERE id = $1 AND question_id = $2`,
 							option.ID, question.ID,

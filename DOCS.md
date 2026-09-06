@@ -280,6 +280,11 @@ edited. Each object must include a `status`:
 | `DELETE` | Delete an existing object; send its ID |
 | `UNCHANGED` | Leave the existing object unchanged |
 
+**Status cascades down.** A parent marked `UNCHANGED` is skipped along with all
+of its children, so its questions and options are never examined. To edit an
+option, its question and section must both be sent as `CHANGE`, not
+`UNCHANGED` — otherwise the change is silently ignored.
+
 Example:
 
 ```json
