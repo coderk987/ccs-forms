@@ -32,5 +32,5 @@ func main() {
 	routes.AdminRoutes(api)
 	routes.AuthRoutes(api)
 	routes.AnalyticsRoutes(api)
-	router.Run(":80")
+	router.Run(":8080")
 }
